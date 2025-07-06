@@ -11,6 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,10 +40,11 @@ class BaseAIService(ABC, Generic[T]):
         self.api_key = api_key
         self.model_name = model_name
         
-        # Initialize OpenAI model
+        # Initialize OpenAI model with provider
+        provider = OpenAIProvider(api_key=self.api_key)
         self.model = OpenAIModel(
-            model_name=self.model_name,
-            api_key=self.api_key
+            self.model_name,
+            provider=provider
         )
         
         # Initialize Pydantic AI agent

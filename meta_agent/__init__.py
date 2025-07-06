@@ -16,6 +16,7 @@ from .services.personality_generator import PersonalityGenerator
 from .services.tool_selector import ToolSelector
 from .services.quality_validator import QualityValidator
 from .services.workflow_adapter import WorkflowAdapter
+from .services.topic_analyzer import TopicAnalyzer
 
 __all__ = [
     "BaseAIService",
@@ -27,4 +28,5 @@ __all__ = [
     "ToolSelector",
     "QualityValidator",
     "WorkflowAdapter",
+    "TopicAnalyzer",
 ]

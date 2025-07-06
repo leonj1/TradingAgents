@@ -12,8 +12,13 @@ from pydantic import BaseModel, Field
 from .base import BaseAIService
 from ..schemas.domain import (
     TaskRequest, TaskResult, AgentTeam, DomainAnalysis,
-    AgentSpecification, DomainWorkflow
+    AgentSpecification, DomainWorkflow, AgentRole
 )
+from .topic_analyzer import TopicAnalyzer, TopicAnalysis
+from .domain_analyzer import DomainAnalyzer
+from .agent_factory import AgentFactory, AgentCreationRequest
+from .debate_orchestrator import DebateOrchestrator, DebateStructure
+from .workflow_adapter import WorkflowAdapter, WorkflowAdaptationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,13 @@ class MetaAgentOrchestrator(BaseAIService[OrchestrationPlan]):
         super().__init__(api_key)
         self.active_teams: Dict[str, AgentTeam] = {}
         self.task_history: List[TaskResult] = []
+        
+        # Initialize supporting services
+        self.topic_analyzer = TopicAnalyzer(api_key)
+        self.domain_analyzer = DomainAnalyzer(api_key)
+        self.agent_factory = AgentFactory(api_key)
+        self.debate_orchestrator = DebateOrchestrator(api_key)
+        self.workflow_adapter = WorkflowAdapter(api_key)
         
     def get_system_prompt(self) -> str:
         """System prompt for the meta-orchestrator"""
@@ -243,3 +255,156 @@ Base your recommendations on patterns in the performance data."""
             "sample_size": len(performance_data),
             "recommendations": result
         }
+    
+    async def respond_to_topic(
+        self,
+        topic: str,
+        auto_execute: bool = True,
+        show_progress: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Complete end-to-end response to a user topic.
+        
+        This method:
+        1. Analyzes the topic to determine domain and requirements
+        2. Creates a specialized agent team
+        3. Executes the workflow
+        4. Returns comprehensive results
+        
+        Args:
+            topic: The user's topic or question
+            auto_execute: Whether to automatically execute the workflow
+            show_progress: Whether to show progress updates
+            
+        Returns:
+            Dictionary containing analysis, team, and results
+        """
+        task_id = str(uuid4())
+        
+        if show_progress:
+            logger.info(f"🔍 Analyzing topic: {topic[:100]}...")
+        
+        # Step 1: Analyze the topic
+        topic_analysis = await self.topic_analyzer.analyze_topic(topic)
+        
+        if show_progress:
+            logger.info(f"📊 Identified domain: {topic_analysis.domain} "
+                       f"(confidence: {topic_analysis.domain_confidence:.2f})")
+            logger.info(f"🎯 Task type: {topic_analysis.task_type}")
+        
+        # Step 2: Convert to task request
+        task_request = await self.topic_analyzer.extract_requirements(
+            topic, topic_analysis
+        )
+        
+        # Step 3: Analyze domain in detail
+        domain_analysis = await self.domain_analyzer.analyze_domain(
+            domain=topic_analysis.domain,
+            task_context=topic,
+            constraints=topic_analysis.constraints
+        )
+        
+        if show_progress:
+            logger.info(f"👥 Creating team with {len(domain_analysis.required_specialists)} specialists...")
+        
+        # Step 4: Create agent team dynamically
+        agents = []
+        
+        # Create specialist agents
+        for i, specialist in enumerate(domain_analysis.required_specialists[:6]):
+            if show_progress:
+                logger.info(f"   🤖 Creating {specialist.get('name', f'Specialist {i+1}')}...")
+            
+            agent_request = AgentCreationRequest(
+                name=specialist.get('name', f'{topic_analysis.domain.title()} Specialist {i+1}'),
+                role=AgentRole.EXPLORER,
+                domain=topic_analysis.domain,
+                specialization=specialist.get('expertise', 'general analysis'),
+                personality_keywords=self._get_personality_keywords(i),
+                capabilities_needed=topic_analysis.specialist_needs
+            )
+            
+            agent_spec = await self.agent_factory.create_agent(agent_request)
+            agents.append(agent_spec)
+        
+        # Create debaters based on debate topics
+        if topic_analysis.debate_topics:
+            debate_positions = self.topic_analyzer._extract_debaters(topic_analysis.debate_topics)
+            for i, position in enumerate(debate_positions[:2]):
+                if show_progress:
+                    logger.info(f"   💬 Creating debater: {position}")
+                
+                debater_request = AgentCreationRequest(
+                    name=f"{position} Advocate",
+                    role=AgentRole.DEBATER,
+                    domain=topic_analysis.domain,
+                    specialization=f"advocating for {position.lower()} perspective",
+                    personality_keywords=["persuasive", "analytical", "evidence-based"],
+                    capabilities_needed=["debate", "argumentation", "synthesis"]
+                )
+                
+                agent_spec = await self.agent_factory.create_agent(debater_request)
+                agents.append(agent_spec)
+        
+        # Step 5: Create workflow
+        workflow_request = WorkflowAdaptationRequest(
+            domain=topic_analysis.domain,
+            base_workflow="explore_debate_synthesize",
+            domain_requirements=topic_analysis.requirements,
+            constraints=topic_analysis.constraints
+        )
+        
+        adapted_workflow = await self.workflow_adapter.adapt_workflow(workflow_request)
+        
+        # Step 6: Assemble team
+        team = AgentTeam(
+            domain=topic_analysis.domain,
+            agents=agents,
+            workflow=adapted_workflow.workflow,
+            debate_structures=[domain_analysis.debate_structure]
+        )
+        
+        self.active_teams[task_id] = team
+        
+        if show_progress:
+            logger.info(f"✅ Team created with {len(agents)} agents")
+        
+        # Step 7: Execute workflow if requested
+        result = None
+        if auto_execute:
+            if show_progress:
+                logger.info("🚀 Executing workflow...")
+            
+            result = await self.orchestrate_workflow(
+                task_id=task_id,
+                inputs={
+                    "topic": topic,
+                    "requirements": topic_analysis.requirements,
+                    "constraints": topic_analysis.constraints
+                }
+            )
+            
+            if show_progress:
+                logger.info(f"✨ Workflow completed with quality score: {result.quality_score:.2f}")
+        
+        return {
+            "task_id": task_id,
+            "topic": topic,
+            "analysis": topic_analysis,
+            "domain_analysis": domain_analysis,
+            "team": team,
+            "result": result,
+            "status": "completed" if result else "team_created"
+        }
+    
+    def _get_personality_keywords(self, index: int) -> List[str]:
+        """Get personality keywords for agent variety"""
+        personality_sets = [
+            ["analytical", "thorough", "detail-oriented"],
+            ["creative", "innovative", "visionary"],
+            ["practical", "efficient", "results-focused"],
+            ["collaborative", "inclusive", "communicative"],
+            ["critical", "questioning", "evidence-based"],
+            ["optimistic", "enthusiastic", "proactive"]
+        ]
+        return personality_sets[index % len(personality_sets)]
