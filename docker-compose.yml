@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  tradingagents:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tradingagents:latest
+    container_name: tradingagents
+    environment:
+      # Required API keys - set these in your .env file
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Optional API keys for alternative LLM providers
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Application configuration
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      # Mount results directory for persistence
+      - ./result_tradingagents:/app/result_tradingagents
+      # Mount config for easy modification (optional)
+      - ./tradingagents/default_config.py:/app/tradingagents/default_config.py:ro
+    stdin_open: true
+    tty: true
+    networks:
+      - tradingagents-network
+    # Uncomment if you want to expose chainlit web interface
+    # ports:
+    #   - "8000:8000"
+
+  # Optional Redis service for caching
+  redis:
+    image: redis:7-alpine
+    container_name: tradingagents-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - tradingagents-network
+    command: redis-server --appendonly yes
+
+volumes:
+  redis-data:
+
+networks:
+  tradingagents-network:
+    driver: bridge
