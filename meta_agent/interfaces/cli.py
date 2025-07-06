@@ -269,10 +269,23 @@ def analyze(
         # Display results
         responder.display_results(result)
         
-        # Save option
-        if Confirm.ask("\n💾 Would you like to save the results?"):
+        # Save option - check if running in TTY
+        import sys
+        should_save = False
+        if sys.stdin.isatty():
+            should_save = Confirm.ask("\n💾 Would you like to save the results?")
+        else:
+            # Auto-save in non-interactive mode
+            should_save = True
+            console.print("\n💾 Auto-saving results (non-interactive mode)...")
+        
+        if should_save:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"meta_agent_results_{timestamp}.json"
+            # Save to results directory
+            import os
+            results_dir = "/app/results"
+            os.makedirs(results_dir, exist_ok=True)
+            filename = os.path.join(results_dir, f"meta_agent_results_{timestamp}.json")
             
             import json
             with open(filename, 'w') as f:

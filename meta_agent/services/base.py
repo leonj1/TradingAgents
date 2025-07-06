@@ -23,16 +23,16 @@ T = TypeVar('T', bound=BaseModel)
 class BaseAIService(ABC, Generic[T]):
     """
     Abstract base class for all AI services in the meta-agent system.
-    Uses Pydantic AI with OpenAI o3 model exclusively.
+    Uses Pydantic AI with OpenAI models.
     """
     
-    def __init__(self, api_key: str, model_name: str = "o3"):
+    def __init__(self, api_key: str, model_name: str = "gpt-4.1"):
         """
         Initialize the AI service with OpenAI API key.
         
         Args:
             api_key: OpenAI API key for authentication
-            model_name: Model name (default: "o3")
+            model_name: Model name (default: "gpt-4.1")
         """
         if not api_key:
             raise ValueError("API key is required")
@@ -41,11 +41,16 @@ class BaseAIService(ABC, Generic[T]):
         self.model_name = model_name
         
         # Initialize OpenAI model with provider
-        provider = OpenAIProvider(api_key=self.api_key)
-        self.model = OpenAIModel(
-            self.model_name,
-            provider=provider
-        )
+        try:
+            provider = OpenAIProvider(api_key=self.api_key)
+            self.model = OpenAIModel(
+                self.model_name,
+                provider=provider
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI model: {str(e)}")
+            logger.error(f"Model name: {self.model_name}")
+            raise ValueError(f"Failed to initialize OpenAI model '{self.model_name}': {str(e)}")
         
         # Initialize Pydantic AI agent
         self.agent = Agent(
@@ -95,7 +100,7 @@ class BaseAIService(ABC, Generic[T]):
         """
         try:
             result = await self.agent.run(user_prompt, **kwargs)
-            return result.data if self.get_response_model() else result.data
+            return result.output if self.get_response_model() else result.output
         except Exception as e:
             logger.error(f"Error invoking agent: {str(e)}")
             raise

@@ -54,7 +54,7 @@ analyze: check-api-key
 		exit 1; \
 	fi
 	@echo "$(GREEN)Analyzing topic: $(TOPIC)$(NC)"
-	docker run -it --rm \
+	docker run --rm \
 		--name $(CONTAINER_NAME)-analyze \
 		-e OPENAI_API_KEY="$$OPENAI_API_KEY" \
 		-v $(PWD)/results:/app/results \
@@ -116,6 +116,16 @@ test:
 		-v $(PWD)/results:/app/results \
 		$(IMAGE_NAME):latest \
 		python -m pytest meta_agent/tests/ -v
+
+# Test OpenAI connection
+.PHONY: test-openai
+test-openai: check-api-key
+	@echo "$(GREEN)Testing OpenAI connection...$(NC)"
+	docker run -it --rm \
+		--name $(CONTAINER_NAME)-test-openai \
+		-e OPENAI_API_KEY="$$OPENAI_API_KEY" \
+		$(IMAGE_NAME):latest \
+		python /app/meta_agent/test_openai_connection.py
 
 # Show logs from running container
 .PHONY: logs

@@ -1,0 +1,33 @@
+{
+  "topic": "What is 2+2?",
+  "task_id": "ff8788f8-0a8d-4aa3-91a1-a0e502a422c5",
+  "status": "completed",
+  "analysis": {
+    "domain": "mathematics",
+    "confidence": 0.95,
+    "task_type": "analysis",
+    "complexity": "simple",
+    "key_concepts": [
+      "arithmetic",
+      "addition",
+      "numerical reasoning",
+      "basic math",
+      "problem solving"
+    ]
+  },
+  "team_size": 7,
+  "agent_names": [
+    "Standard Arithmetic Expert",
+    "Misconception Spotter",
+    "Pedagogical Specialist",
+    "Alternative Systems Analyst",
+    "Automated Verification Engineer",
+    "Progressive View Advocate",
+    "Traditional View Advocate"
+  ],
+  "result": {
+    "quality_score": 0.85,
+    "execution_time": 120.5,
+    "decision": "Based on comprehensive analysis and debate synthesis"
+  }
+}

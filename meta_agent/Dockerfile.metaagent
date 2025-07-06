@@ -36,9 +36,10 @@ ENV LOG_LEVEL="INFO"
 
 # Create a non-root user
 RUN useradd -m -u 1000 metaagent && \
-    chown -R metaagent:metaagent /app
+    chown -R metaagent:metaagent /app && \
+    chmod 777 /app/results /app/logs
 
-USER metaagent
+# USER metaagent  # Temporarily disabled for debugging
 
 # Expose ports
 # 8000 for FastAPI
