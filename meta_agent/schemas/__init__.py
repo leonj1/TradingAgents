@@ -1,0 +1,1 @@
+"""Schema definitions for meta-agent system"""
